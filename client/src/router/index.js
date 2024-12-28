@@ -17,69 +17,83 @@ const adminRoutes = [
   {
     path: "",
     redirect: "dashboard",
+    meta: { requiresAuth: true },
   },
   {
     path: "dashboard",
     name: "Dashboard",
     component: () => import("@/views/admin/DashboardView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "memberships",
     name: "memberships",
     component: () => import("@/views/admin/MembershipsView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "consumers",
     name: "consumers",
     component: () => import("@/views/admin/ConsumerListView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "consumer/:id/:action(add|edit|view)",
     name: "Consumer Profile",
     component: () => import("@/views/admin/ConsumerProfile.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "billings",
     name: "billings",
     component: () => import("@/views/admin/BillingListView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "billings/:id/:action(add|edit|view)",
     name: "Billing Form",
     component: () => import("@/views/admin/BillingForm.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "collections",
     name: "collections",
     component: () => import("@/views/admin/CollectionListView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "expenses",
     name: "expenses",
     component: () => import("@/views/admin/ExpensesListView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "settings",
     name: "settings",
     component: () => import("@/views/admin/Settings.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "users",
     name: "users",
-    component: () => import("@/views/admin/UserList.vue"),
+    component: () => import("@/views/admin/UserListView.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "user-roles",
     name: "roles",
     component: () => import("@/views/admin/RoleList.vue"),
+    meta: { requiresAuth: true },
   },
   {
     path: "reports",
     component: () => import("@/views/admin/Reports.vue"),
+    meta: { requiresAuth: true },
     children: [
       {
         path: "",
         name: "Reports",
+        meta: { requiresAuth: true },
       },
     ],
   },
@@ -118,27 +132,17 @@ const router = new VueRouter({
 
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
-  const isAuthenticated = store.getters["auth/isAuthenticated"];
+  const isAuthenticated = store.getters["users/isAuthenticated"];
 
-  if (to.path === "/") {
-    if (isAuthenticated) {
-      next("/admin/dashboard");
-    } else {
-      next("/login");
-    }
-    return;
-  }
-
-  if (requiresAuth && !isAuthenticated) {
-    next("/login");
-    return;
-  }
-
-  if (to.meta.guest && isAuthenticated) {
+  if (to.path === "/" && isAuthenticated) {
     next("/admin/dashboard");
-    return;
+  } else if (requiresAuth && !isAuthenticated) {
+    next("/login");
+  } else if (to.path === "/login" && isAuthenticated) {
+    next("/admin/dashboard");
+  } else {
+    next();
   }
-  next();
 });
 
 export default router;

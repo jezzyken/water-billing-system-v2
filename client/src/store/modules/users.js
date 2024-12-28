@@ -1,10 +1,149 @@
-import userService from "@/services/userService";
+/* eslint-disable */
+import api from "../../services/api"
+
+const endpoint = "user";
 
 const state = {
   users: [],
-  currentUser: null,
-  loading: false,
-  error: null,
+  currentUser: JSON.parse(localStorage.getItem("currentUser")) || null,
+  token: localStorage.getItem("token") || null,
+  expiresIn: localStorage.getItem("expiresIn") || null,
+};
+
+const actions = {
+  async register({ commit }, formData) {
+    try {
+      const response = await api.post(
+        `/${endpoint}/register`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+      const { token, user, expiresIn } = response.data;
+      localStorage.setItem("token", token);
+      localStorage.setItem("expiresIn", expiresIn);
+      commit("SET_AUTH", { token, user, expiresIn });
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+
+  async login({ commit }, credentials) {
+    try {
+      const response = await api.post(
+        `/${endpoint}/login`,
+        credentials
+      );
+      
+      if (response.data.success) {
+        const { token, user, expiresIn } = response.data;
+        localStorage.setItem("token", token);
+        localStorage.setItem("expiresIn", expiresIn);
+        localStorage.setItem("currentUser", JSON.stringify(user));
+        commit("SET_AUTH", { token, user, expiresIn });
+      }
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+
+  logout({ commit }) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("expiresIn");
+    commit("CLEAR_AUTH");
+  },
+
+  async getUsers({ commit, state }) {
+    try {
+      const response = await api.get(`/${endpoint}`, {
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      commit("SET_USERS", response.data.users);
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+
+  async getUserById({ commit, state }, id) {
+    try {
+      const response = await api.get(`/${endpoint}/${id}`, {
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      commit("SET_CURRENT_USER", response.data.user);
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+
+  async updateUser({ commit }, { id, formData }) {
+    try {
+      const response = await api.put(`/${endpoint}/${id}`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+
+  async deleteUser({ state }, id) {
+    try {
+      const response = await api.delete(`/${endpoint}/${id}`, {
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+
+  async changePassword({ state }, { id, currentPassword, newPassword }) {
+    try {
+      const response = await api.patch(
+        `/${endpoint}/${id}/change-password`,
+        { currentPassword, newPassword },
+        {
+          headers: { Authorization: `Bearer ${state.token}` },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      return error.response;
+    }
+  },
+  async restoreSession({ commit, state }) {
+    const token = localStorage.getItem("token");
+    if (token) {
+      try {
+        const response = await api.get(
+          `/${endpoint}/${state.currentUser.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        if (response.data.success) {
+          commit("SET_AUTH", {
+            token,
+            user: response.data.user,
+            expiresIn: localStorage.getItem("expiresIn"),
+          });
+        }
+        return response.data;
+      } catch (error) {
+        commit("CLEAR_AUTH");
+        return error.response;
+      }
+    }
+  },
 };
 
 const mutations = {
@@ -12,133 +151,36 @@ const mutations = {
     state.users = users;
   },
   SET_CURRENT_USER(state, user) {
+    console.log(user)
     state.currentUser = user;
   },
-  SET_LOADING(state, status) {
-    state.loading = status;
+  SET_AUTH(state, { token, user, expiresIn }) {
+    state.token = token;
+    state.currentUser = user;
+    state.expiresIn = expiresIn;
+    localStorage.setItem("currentUser", JSON.stringify(user));
   },
-  SET_ERROR(state, error) {
-    state.error = error;
-  },
-  ADD_USER(state, user) {
-    state.users.push(user);
-  },
-  UPDATE_USER(state, updatedUser) {
-    const index = state.users.findIndex((user) => user._id === updatedUser._id);
-    if (index !== -1) {
-      state.users.splice(index, 1, updatedUser);
-    }
-  },
-  REMOVE_USER(state, userId) {
-    state.users = state.users.filter((user) => user._id !== userId);
-  },
-};
-
-const actions = {
-  async fetchUsers({ commit }) {
-    commit("SET_LOADING", true);
-    try {
-      const response = await userService.getUsers();
-      commit("SET_USERS", response.data.data);
-      commit("SET_ERROR", null);
-    } catch (error) {
-      commit(
-        "SET_ERROR",
-        error.response?.data?.error || "Error fetching users"
-      );
-    } finally {
-      commit("SET_LOADING", false);
-    }
-  },
-
-  async fetchUser({ commit }, id) {
-    commit("SET_LOADING", true);
-    try {
-      const response = await userService.getUser(id);
-      commit("SET_CURRENT_USER", response.data.data);
-      commit("SET_ERROR", null);
-      return response.data.data;
-    } catch (error) {
-      commit("SET_ERROR", error.response?.data?.error || "Error fetching user");
-      throw error;
-    } finally {
-      commit("SET_LOADING", false);
-    }
-  },
-
-  async createUser({ commit }, userData) {
-    commit("SET_LOADING", true);
-    try {
-      const response = await userService.createUser(userData);
-      commit("ADD_USER", response.data.data);
-      commit("SET_ERROR", null);
-      return response.data.data;
-    } catch (error) {
-      commit("SET_ERROR", error.response?.data?.error || "Error creating user");
-      throw error;
-    } finally {
-      commit("SET_LOADING", false);
-    }
-  },
-
-  async updateUser({ commit }, { id, userData }) {
-    commit("SET_LOADING", true);
-    try {
-      const response = await userService.updateUser(id, userData);
-      commit("UPDATE_USER", response.data.data);
-      commit("SET_ERROR", null);
-      return response.data.data;
-    } catch (error) {
-      commit("SET_ERROR", error.response?.data?.error || "Error updating user");
-      throw error;
-    } finally {
-      commit("SET_LOADING", false);
-    }
-  },
-
-  async deleteUser({ commit }, id) {
-    commit("SET_LOADING", true);
-    try {
-      await userService.deleteUser(id);
-      commit("REMOVE_USER", id);
-      commit("SET_ERROR", null);
-    } catch (error) {
-      commit("SET_ERROR", error.response?.data?.error || "Error deleting user");
-      throw error;
-    } finally {
-      commit("SET_LOADING", false);
-    }
-  },
-
-  async changePassword({ commit }, passwordData) {
-    commit("SET_LOADING", true);
-    try {
-      await userService.changePassword(passwordData);
-      commit("SET_ERROR", null);
-    } catch (error) {
-      commit(
-        "SET_ERROR",
-        error.response?.data?.error || "Error changing password"
-      );
-      throw error;
-    } finally {
-      commit("SET_LOADING", false);
-    }
+  CLEAR_AUTH(state) {
+    state.token = null;
+    state.currentUser = null;
+    state.expiresIn = null;
+    localStorage.removeItem("currentUser");
   },
 };
 
 const getters = {
-  getUsers: (state) => state.users,
+  isAuthenticated: (state) => !!state.token,
+  isAdmin: (state) => state.currentUser?.role === "admin",
+  getAllUsers: (state) => state.users,
   getCurrentUser: (state) => state.currentUser,
-  isLoading: (state) => state.loading,
-  getError: (state) => state.error,
-  getUserById: (state) => (id) => state.users.find((user) => user._id === id),
+  getToken: (state) => state.token,
+  getExpiresIn: (state) => state.expiresIn,
 };
 
 export default {
   namespaced: true,
   state,
-  mutations,
   actions,
+  mutations,
   getters,
 };

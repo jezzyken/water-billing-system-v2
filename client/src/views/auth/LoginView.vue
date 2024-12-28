@@ -1,61 +1,79 @@
 <template>
-  <v-container fill-height fluid class="login-container">
-    <div class="animated-bg"></div>
+  <v-container class="fill-height" fluid>
     <v-row align="center" justify="center">
-      <v-col cols="12" sm="8" md="4">
-        <v-card class="login-card">
-          <div class="card-header">
-            <h1 class="text-h4 font-weight-bold mb-2">Welcome Back</h1>
-            <p class="text-subtitle-1 grey--text">Sign in to your account</p>
-          </div>
+      <v-col cols="12" sm="8" md="6" lg="4">
+        <v-card class="login-card" elevation="8">
+          <!-- Logo/Brand Section -->
+          <v-card-text class="text-center pt-8">
+            <v-avatar size="80" color="primary" class="mb-4">
+              <v-icon size="40" color="white">mdi-account</v-icon>
+            </v-avatar>
+            <h1 class="text-h4 font-weight-bold primary--text mb-2">Welcome Back</h1>
+            <p class="text-subtitle-1 grey--text">Please sign in to continue</p>
+          </v-card-text>
 
-          <v-card-text>
-            <v-form @submit.prevent="handleSubmit" ref="form">
+          <v-card-text class="pt-4">
+            <v-form @submit.prevent="handleLogin" ref="loginForm">
+              <!-- Email Field -->
               <v-text-field
-                v-model="form.email"
+                v-model="formData.email"
                 label="Email"
-                outlined
+                type="email"
+                filled
                 rounded
                 dense
-                :rules="[rules.required, rules.email]"
-                class="input-field"
-              >
-                <template v-slot:prepend>
-                  <v-icon color="primary">mdi-email</v-icon>
-                </template>
-              </v-text-field>
+                color="primary"
+                prepend-inner-icon="mdi-email"
+                :rules="emailRules"
+                class="mb-4"
+                required
+              ></v-text-field>
 
+              <!-- Password Field -->
               <v-text-field
-                v-model="form.password"
+                v-model="formData.password"
                 label="Password"
                 :type="showPassword ? 'text' : 'password'"
-                outlined
+                filled
                 rounded
                 dense
-                :rules="[rules.required]"
-                class="input-field"
-              >
-                <template v-slot:prepend>
-                  <v-icon color="primary">mdi-lock</v-icon>
-                </template>
-                <template v-slot:append>
-                  <v-icon @click="showPassword = !showPassword">
-                    {{ showPassword ? "mdi-eye" : "mdi-eye-off" }}
-                  </v-icon>
-                </template>
-              </v-text-field>
+                color="primary"
+                prepend-inner-icon="mdi-lock"
+                :append-icon="showPassword ? 'mdi-eye' : 'mdi-eye-off'"
+                @click:append="showPassword = !showPassword"
+                :rules="passwordRules"
+                class="mb-2"
+                required
+              ></v-text-field>
 
+
+              <!-- Error Alert -->
+              <v-alert
+                v-if="error"
+                type="error"
+                dense
+                text
+                class="mb-4"
+              >
+                {{ error }}
+              </v-alert>
+
+              <!-- Login Button -->
               <v-btn
                 block
+                x-large
+                rounded
                 color="primary"
-                height="44"
-                elevation="2"
+                height="50"
                 :loading="loading"
-                @click="handleSubmit"
-                class="login-btn"
+                :disabled="loading"
+                @click="handleLogin"
+                class="mb-6"
               >
+                <v-icon left>mdi-login</v-icon>
                 Sign In
               </v-btn>
+
             </v-form>
           </v-card-text>
         </v-card>
@@ -65,195 +83,95 @@
 </template>
 
 <script>
-import { mapState, mapActions } from "vuex";
+import { mapActions } from 'vuex';
 
 export default {
-  name: "LoginView",
-
+  name: 'LoginForm',
+  
   data() {
     return {
-      form: {
-        email: "",
-        password: "",
+      formData: {
+        email: '',
+        password: ''
       },
+      loading: false,
+      error: null,
       showPassword: false,
-      emailError: "",
-      passwordError: "",
-      rules: {
-        required: (v) => !!v || "This field is required",
-        email: (v) =>
-          /.+@.+\..+/.test(v) || "Please enter a valid email address",
-      },
-      socialLogins: [
-        { provider: "google", icon: "mdi-google", color: "red" },
-        { provider: "facebook", icon: "mdi-facebook", color: "blue" },
-        { provider: "twitter", icon: "mdi-twitter", color: "light-blue" },
+      rememberMe: false,
+      emailRules: [
+        v => !!v || 'Email is required',
+        v => /.+@.+\..+/.test(v) || 'Email must be valid'
       ],
+      passwordRules: [
+        v => !!v || 'Password is required',
+        v => v.length >= 6 || 'Password must be at least 6 characters'
+      ],
+      socialLogins: [
+        { name: 'google', icon: 'mdi-google', color: 'red' },
+        { name: 'facebook', icon: 'mdi-facebook', color: 'blue' },
+        { name: 'twitter', icon: 'mdi-twitter', color: 'light-blue' }
+      ]
     };
   },
 
-  computed: {
-    ...mapState("auth", ["loading", "error"]),
-  },
-
   methods: {
-    ...mapActions("auth", ["login", "socialLogin"]),
+    ...mapActions('users', ['login']),
 
-    async handleSubmit() {
-      if (this.$refs.form.validate()) {
-        try {
-          await this.login(this.form);
-
-          const userData = JSON.parse(localStorage.getItem("user"));
-
-          if (userData?.role?.name === "Staff") {
-            this.$router.push("/admin/documents");
-          } 
-        } catch (error) {
-          if (error.response?.data?.field === "email") {
-            this.emailError = error.response.data.message;
-          } else if (error.response?.data?.field === "password") {
-            this.passwordError = error.response.data.message;
-          } else {
-            this.error =
-              error.response?.data?.message ||
-              "Login failed. Please try again.";
-          }
+    async handleLogin() {
+      if (!this.$refs.loginForm.validate()) return;
+      
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        const response = await this.login(this.formData);
+        
+        if (response.success) {
+          this.$router.push('/admin/dashboard');
+        } else {
+          this.error = response.message || 'Login failed';
         }
+      } catch (error) {
+        this.error = error.response?.data?.message || 'An error occurred';
+      } finally {
+        this.loading = false;
       }
     },
+
+    forgotPassword() {
+      this.$router.push('/forgot-password');
+    },
+
+    goToSignup() {
+      this.$router.push('/signup');
+    },
+
+    socialLogin(provider) {
+      console.log(`Logging in with ${provider}`);
+      // Implement social login logic here
+    }
   },
+
+  created() {
+    if (this.$store.getters['users/isAuthenticated']) {
+      this.$router.push('/dashboard');
+    }
+  }
 };
 </script>
 
 <style scoped>
-.login-container {
-  background: linear-gradient(to right, #f5f7fa, #c3cfe2);
-  min-height: 100vh;
-}
-
 .login-card {
   border-radius: 16px;
-  box-shadow: 0 4px 25px 0 rgba(0, 0, 0, 0.1);
 }
 
-.custom-field {
-  border-radius: 12px;
+.v-card__text {
+  padding: 24px 32px;
 }
 
-.custom-field >>> .v-input__slot {
-  min-height: 44px;
-}
-
-.custom-field >>> .v-text-field__details {
-  padding-left: 12px;
-}
-
-.v-alert {
-  animation: shake 0.82s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-}
-
-@keyframes shake {
-  10%,
-  90% {
-    transform: translate3d(-1px, 0, 0);
-  }
-  20%,
-  80% {
-    transform: translate3d(2px, 0, 0);
-  }
-  30%,
-  50%,
-  70% {
-    transform: translate3d(-4px, 0, 0);
-  }
-  40%,
-  60% {
-    transform: translate3d(4px, 0, 0);
-  }
-}
-
-.v-btn:not(.v-btn--icon) {
-  transition: transform 0.2s ease-in-out;
-}
-
-.v-btn:not(.v-btn--icon):hover {
-  transform: translateY(-2px);
-}
-
-.welcome-msg {
-  color: #a52a2a;
-}
-
-.login-container {
-  position: relative;
-  overflow: hidden;
-  min-height: 100vh;
-}
-
-.animated-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(45deg, #f5f7fa, #c3cfe2, #a52a2a);
-  background-size: 400% 400%;
-  animation: gradient 15s ease infinite;
-  z-index: 0;
-}
-
-.login-card {
-  position: relative;
-  z-index: 1;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.9);
-  padding: 2rem;
-  transition: transform 0.3s ease;
-}
-
-.login-card:hover {
-  transform: translateY(-5px);
-}
-
-.card-header {
-  text-align: center;
-  padding: 1rem 0 2rem;
-}
-
-.input-field {
-  margin-bottom: 1.5rem;
-}
-
-.login-btn {
-  text-transform: none;
-  font-size: 1.1rem;
-  letter-spacing: 0.5px;
-  border-radius: 10px;
-}
-
-@keyframes gradient {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-@keyframes gradient {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
+@media (max-width: 600px) {
+  .v-card__text {
+    padding: 16px 24px;
   }
 }
 </style>

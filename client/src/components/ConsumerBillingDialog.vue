@@ -1,8 +1,8 @@
 <template>
-  <v-dialog v-model="dialog" persistent max-width="700">
+  <v-dialog v-model="dialog" persistent max-width="700" class="billing-dialog">
     <v-card>
-      <v-card-title class="text-h6">
-        Create New Billing
+      <v-card-title class="text-h6 d-flex align-center pa-4">
+        <span class="billing-title">{{ update ? 'Update' : 'Create New' }} Billing</span>
         <v-spacer></v-spacer>
         <v-btn icon @click="dialog = false">
           <v-icon>mdi-close</v-icon>
@@ -12,39 +12,44 @@
       <v-divider></v-divider>
 
       <v-card-text class="pt-4">
-        <v-container v-if="!isLoading">
+        <v-container v-if="!isLoading" class="px-2 px-sm-4">
+          <!-- Billing Period Selection -->
           <v-row>
-            <v-col cols="6">
+            <v-col cols="12" sm="6">
               <v-select
                 v-model="items.month"
                 :items="months"
                 label="Present Date"
                 outlined
+                dense
                 required
                 :disabled="update"
               ></v-select>
             </v-col>
 
-            <v-col cols="3">
+            <v-col cols="12" sm="3">
               <v-select
                 v-model="items.year"
                 :items="years"
                 label="Year"
                 outlined
+                dense
                 required
                 :disabled="update"
               ></v-select>
             </v-col>
           </v-row>
 
+          <!-- Billing Details -->
           <v-row>
-            <v-col cols="3">
+            <v-col cols="12" sm="4">
               <v-menu
                 ref="dateMenu"
                 v-model="dateMenu"
                 :close-on-content-click="false"
                 transition="scale-transition"
                 min-width="290px"
+                :nudge-right="40"
               >
                 <template v-slot:activator="{ on, attrs }">
                   <v-text-field
@@ -52,6 +57,7 @@
                     label="Billing Date"
                     readonly
                     outlined
+                    dense
                     v-bind="attrs"
                     v-on="on"
                     :disabled="update"
@@ -61,52 +67,62 @@
                 <v-date-picker
                   v-model="items.billingDate"
                   @input="dateMenu = false"
+                  scrollable
                 ></v-date-picker>
               </v-menu>
             </v-col>
 
-            <v-col cols="3">
+            <v-col cols="12" sm="4" md="2">
               <v-text-field
                 v-model="items.previousRead"
                 label="Previous Read"
                 outlined
+                dense
                 disabled
               ></v-text-field>
             </v-col>
 
-            <v-col cols="3">
+            <v-col cols="12" sm="4" md="3">
               <v-text-field
                 v-model="items.presentRead"
                 label="Present Read"
                 outlined
+                dense
                 type="number"
+                :rules="[v => v >= items.previousRead || 'Present read must be greater than previous read']"
               ></v-text-field>
             </v-col>
 
-            <v-col cols="3">
+            <v-col cols="12" sm="4" md="3">
               <v-text-field
                 v-model="consumption"
                 label="Consumption"
                 outlined
+                dense
                 disabled
               ></v-text-field>
             </v-col>
+          </v-row>
 
-            <v-col cols="6">
+          <!-- Meter Details -->
+          <v-row>
+            <v-col cols="12" sm="6">
               <v-select
                 v-model="items.readType"
                 :items="readTypes"
                 label="Read Type"
                 outlined
+                dense
               ></v-select>
             </v-col>
 
-            <v-col cols="6">
+            <v-col cols="12" sm="6">
               <v-select
                 v-model="items.meterDescription"
                 :items="meterDescriptions"
                 label="Meter Description"
                 outlined
+                dense
               ></v-select>
             </v-col>
 
@@ -116,18 +132,40 @@
                 label="Notes"
                 outlined
                 auto-grow
+                rows="3"
+                row-height="15"
+                class="billing-notes"
               ></v-textarea>
             </v-col>
           </v-row>
         </v-container>
+
+        <v-skeleton-loader
+          v-else
+          type="article"
+          class="mx-auto"
+        ></v-skeleton-loader>
       </v-card-text>
 
       <v-divider></v-divider>
 
-      <v-card-actions>
+      <v-card-actions class="pa-4">
         <v-spacer></v-spacer>
-        <v-btn text @click="dialog = false">Cancel</v-btn>
-        <v-btn color="primary" @click="onAddItem">{{ buttonLabel }}</v-btn>
+        <v-btn 
+          text 
+          @click="dialog = false"
+          class="px-4"
+        >
+          Cancel
+        </v-btn>
+        <v-btn 
+          color="primary" 
+          @click="onAddItem"
+          :loading="isSaving"
+          class="px-6"
+        >
+          {{ buttonLabel }}
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -329,3 +367,85 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.billing-dialog ::v-deep .v-text-field.v-text-field--enclosed .v-text-field__details {
+  margin-bottom: 0;
+}
+
+.billing-title {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+
+.billing-notes ::v-deep .v-text-field__slot textarea {
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .billing-dialog {
+    margin: 0;
+  }
+
+  .v-dialog {
+    margin: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100%;
+    max-width: none !important;
+    border-radius: 0;
+  }
+
+  .v-card {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .v-card__text {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .v-text-field {
+    margin-bottom: 8px;
+  }
+
+  .v-btn {
+    min-width: 90px;
+    height: 40px;
+  }
+
+  .billing-title {
+    font-size: 1.1rem;
+  }
+
+  .v-card-title {
+    padding: 12px !important;
+  }
+
+  .v-card-actions {
+    padding: 12px !important;
+  }
+}
+
+/* Tablet Optimizations */
+@media (min-width: 601px) and (max-width: 960px) {
+  .billing-dialog {
+    margin: 24px;
+  }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) {
+  .v-btn {
+    min-height: 44px;
+  }
+
+  .v-text-field ::v-deep .v-input__slot {
+    min-height: 44px;
+  }
+}
+</style>

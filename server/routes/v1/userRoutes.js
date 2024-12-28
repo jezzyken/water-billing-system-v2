@@ -1,141 +1,223 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../../models/User");
-const { auth, authorize } = require("../../middleware/authMiddleware");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const {
+  isAuthenticated,
+  isAdmin,
+} = require("../../middleware/auth.middleware");
+const { cloudinary, uploadToCloudinary } = require("../../config/cloudinary");
 
-router.post("/", async (req, res) => {
-  try {
-    const user = await User.create(req.body);
-    res.status(201).json({
-      success: true,
-      data: user,
-    });
-  } catch (error) {
-    console.error("User creation error:", error);
-    res.status(400).json({
-      success: false,
-      error: error.message || "Failed to create user",
-    });
+router.post(
+  "/register",
+  uploadToCloudinary.single("image"),
+  async (req, res) => {
+    try {
+      const { fname, lname, email, password, role } = req.body;
+      let imageUrl = "";
+
+      if (req.file) {
+        const result = await cloudinary.uploader.upload(req.file.path);
+        imageUrl = result.secure_url;
+      }
+
+      const user = await User.create({
+        fname,
+        lname,
+        email,
+        password,
+        role,
+        image: imageUrl,
+      });
+
+      const token = jwt.sign(
+        {
+          id: user._id,
+        },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "24h",
+        }
+      );
+
+      const expiresIn = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      res.status(201).json({
+        success: true,
+        token,
+        expiresIn,
+        user: {
+          id: user._id,
+          fname: user.fname,
+          lname: user.lname,
+          email: user.email,
+          role: user.role,
+          image: user.image,
+        },
+      });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ success: false, message: error.message });
+    }
   }
-});
+);
 
-router.get("/", auth, async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
-    const users = await User.find().populate("role");
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
 
-    res.status(200).json({
-      success: true,
-      data: users,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.get("/:id", auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).populate("role");
+    console.log(email, password);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    res.status(200).json({
-      success: true,
-      data: user,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.put("/:id", auth, async (req, res) => {
-  try {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid credentials" });
     }
 
-    res.status(200).json({
-      success: true,
-      data: user,
-    });
-  } catch (error) {
-    console.log(error);
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-router.delete("/:id", auth, async (req, res) => {
-  try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { isActive: false },
-      { new: true }
+    const token = jwt.sign(
+      {
+        id: user._id,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "24h",
+      }
     );
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found",
-      });
-    }
+    const expiresIn = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    res.status(200).json({
+    res.json({
       success: true,
-      data: {},
+      token,
+      expiresIn,
+      user: {
+        id: user._id,
+        fname: user.fname,
+        lname: user.lname,
+        email: user.email,
+        role: user.role,
+        image: user.image,
+      },
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-router.post("/change-password", auth, async (req, res) => {
+router.get("/", isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
-    const user = await User.findById(req.user.id);
+    const users = await User.find().select("-password");
+    res.json({ success: true, users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
-    const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(400).json({
+router.get("/:id", isAuthenticated, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+    res.json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put(
+  "/:id",
+  isAuthenticated,
+  uploadToCloudinary.single("image"),
+  async (req, res) => {
+    try {
+      const { fname, lname, email, status, role } = req.body;
+      let updateData = { fname, lname, email, status, role };
+
+      if (req.file) {
+        const result = await cloudinary.uploader.upload(req.file.path);
+        updateData.image = result.secure_url;
+
+        const oldUser = await User.findById(req.params.id);
+        if (oldUser.image) {
+          const publicId = oldUser.image.split("/").pop().split(".")[0];
+          await cloudinary.uploader.destroy(publicId);
+        }
+      }
+
+      const user = await User.findByIdAndUpdate(req.params.id, updateData, {
+        new: true,
+      }).select("-password");
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+
+      res.json({ success: true, user });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+router.delete("/:id", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (user.image) {
+      const publicId = user.image.split("/").pop().split(".")[0];
+      await cloudinary.uploader.destroy(publicId);
+    }
+
+    await user.deleteOne();
+    res.json({ success: true, message: "User deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.patch("/:id/change-password", isAuthenticated, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
         success: false,
-        error: "Current password is incorrect",
+        message: "User not found",
       });
     }
 
     user.password = newPassword;
     await user.save();
 
-    res.status(200).json({
+    res.json({
       success: true,
       message: "Password updated successfully",
     });
   } catch (error) {
-    res.status(400).json({
+    res.status(500).json({
       success: false,
-      error: error.message,
+      message: error.message,
     });
   }
 });
