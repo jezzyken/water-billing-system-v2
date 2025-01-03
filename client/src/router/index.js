@@ -134,15 +134,26 @@ router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
   const isAuthenticated = store.getters["users/isAuthenticated"];
 
-  if (to.path === "/" && isAuthenticated) {
-    next("/admin/dashboard");
-  } else if (requiresAuth && !isAuthenticated) {
-    next("/login");
-  } else if (to.path === "/login" && isAuthenticated) {
-    next("/admin/dashboard");
-  } else {
-    next();
+  if (to.path === "/") {
+    if (isAuthenticated) {
+      next("/admin/dashboard");
+    } else {
+      next("/login");
+    }
+    return;
   }
+
+  if (requiresAuth && !isAuthenticated) {
+    next("/login");
+    return;
+  }
+
+  if (to.path === "/login" && isAuthenticated) {
+    next("/admin/dashboard");
+    return;
+  }
+
+  next();
 });
 
 export default router;
