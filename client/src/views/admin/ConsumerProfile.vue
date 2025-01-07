@@ -1,373 +1,526 @@
 <template>
-  <div class="meter-reader-app">
-    <!-- Top App Bar -->
-    <v-app-bar fixed dense color="primary" dark>
-      <v-toolbar-title class="text-subtitle-1">Meter Reading</v-toolbar-title>
-      <v-spacer></v-spacer>
-      <v-chip small color="success" class="mr-2">
-        <v-icon left small>mdi-account</v-icon>
-        John Reader
-      </v-chip>
-    </v-app-bar>
+  <v-container>
+    <v-overlay :value="loading">
+      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+    </v-overlay>
 
-    <!-- Main Content -->A
-    <div class="content-wrapper">
-      <!-- Search and Filter Section -->
-      <div class="search-section mb-4">
-        <v-text-field
-          v-model="search"
-          dense
-          outlined
-          clearable
-          placeholder="Search consumer"
-          prepend-inner-icon="mdi-magnify"
-          class="mb-2"
-        ></v-text-field>
-        
-        <v-select
-          v-model="selectedPurok"
-          :items="puroks"
-          dense
-          outlined
-          label="Filter by Purok"
-          clearable
-        ></v-select>
-      </div>
+    <!-- Consumer Profile Card -->
+    <v-card class="mb-6 profile-card" elevation="2">
+      <v-card-title
+        class="text-subtitle-1 text-uppercase font-weight-bold primary white--text py-4"
+      >
+        <v-icon left color="white">mdi-account</v-icon>
+        Consumer Profile
+      </v-card-title>
 
-      <!-- Consumer List -->
-      <div class="consumer-list">
-        <v-card 
-          v-for="consumer in filteredConsumers" 
-          :key="consumer.id"
-          class="mb-3 consumer-card"
-          :class="{'already-billed': consumer.lastBilling?.status === 'Pending'}"
-          @click="openBillingDialog(consumer)"
-        >
-          <v-card-text>
-            <div class="d-flex justify-space-between align-center mb-2">
-              <div class="consumer-name">{{ consumer.name }}</div>
+      <v-card-text class="py-4">
+        <v-row>
+          <v-col cols="12" sm="6">
+            <div class="profile-field">
+              <div class="text-subtitle-2 grey--text">Full Name</div>
+              <div class="text-body-1 font-weight-medium">
+                {{ consumerInfo.fullName }}
+              </div>
+            </div>
+
+            <div class="profile-field mt-4">
+              <div class="text-subtitle-2 grey--text">Address</div>
+              <div class="text-body-1">{{ consumerInfo.fullAddress }}</div>
+            </div>
+          </v-col>
+
+          <v-col cols="12" sm="6">
+            <div class="profile-field">
+              <div class="text-subtitle-2 grey--text">Contact Number</div>
+              <div class="text-body-1">{{ consumerInfo.contactNo }}</div>
+            </div>
+
+            <div class="profile-field mt-4">
+              <div class="text-subtitle-2 grey--text">Account Status</div>
               <v-chip
-                x-small
-                :color="getBillingStatusColor(consumer.lastBilling?.status)"
-                text-color="white"
+                :color="consumer.isActive ? 'success' : 'error'"
                 label
+                small
+                class="mt-1"
               >
-                {{ consumer.lastBilling?.status || 'No Billing' }}
+                <v-icon left small>
+                  {{
+                    consumer.isActive ? "mdi-check-circle" : "mdi-alert-circle"
+                  }}
+                </v-icon>
+                {{ consumer.isActive ? "Active" : "Inactive" }}
               </v-chip>
             </div>
+          </v-col>
+        </v-row>
+      </v-card-text>
+    </v-card>
 
-            <div class="consumer-details">
-              <div class="detail-item">
-                <v-icon small color="grey">mdi-map-marker</v-icon>
-                <span>{{ consumer.address }}</span>
-              </div>
-              <div class="detail-item">
-                <v-icon small color="grey">mdi-counter</v-icon>
-                <span>Last Reading: {{ consumer.lastBilling?.presentRead || 0 }}</span>
+    <!-- Summary Cards -->
+    <v-row class="mb-6">
+      <v-col cols="12" sm="4">
+        <v-card class="summary-card" height="100%">
+          <v-card-text>
+            <div class="d-flex flex-column justify-center align-center">
+              <div class="text-overline mb-2">Total Consumption</div>
+              <v-icon color="primary" size="36" class="mb-2">mdi-water</v-icon>
+              <div class="text-h4 primary--text font-weight-bold">
+                {{ totalConsumption }} m³
               </div>
             </div>
           </v-card-text>
         </v-card>
-      </div>
+      </v-col>
 
-      <!-- New Billing Dialog -->
-      <v-dialog v-model="showBillingDialog" fullscreen>
-        <v-card>
-          <v-toolbar dark color="primary" dense>
-            <v-btn icon @click="showBillingDialog = false">
-              <v-icon>mdi-close</v-icon>
-            </v-btn>
-            <v-toolbar-title>New Billing Entry</v-toolbar-title>
-          </v-toolbar>
-
-          <v-card-text class="pt-4">
-            <template v-if="selectedConsumer">
-              <!-- Consumer Info -->
-              <div class="billing-consumer-info mb-4">
-                <div class="text-h6">{{ selectedConsumer.name }}</div>
-                <div class="caption grey--text">{{ selectedConsumer.address }}</div>
+      <v-col cols="12" sm="4">
+        <v-card class="summary-card" height="100%">
+          <v-card-text>
+            <div class="d-flex flex-column justify-center align-center">
+              <div class="text-overline mb-2">Outstanding Balance</div>
+              <v-icon
+                :color="outstandingBalance > 0 ? 'error' : 'success'"
+                size="36"
+                class="mb-2"
+              >
+                {{
+                  outstandingBalance > 0 ? "mdi-cash-remove" : "mdi-cash-check"
+                }}
+              </v-icon>
+              <div
+                class="text-h4 font-weight-bold"
+                :class="outstandingBalance > 0 ? 'red--text' : 'success--text'"
+              >
+                ₱{{ outstandingBalance.toFixed(2) }}
               </div>
-
-              <!-- Reading Form -->
-              <v-form ref="form" v-model="valid">
-                <v-row>
-                  <v-col cols="6">
-                    <v-text-field
-                      v-model="previousReading"
-                      label="Previous Reading"
-                      outlined
-                      dense
-                      disabled
-                    ></v-text-field>
-                  </v-col>
-
-                  <v-col cols="6">
-                    <v-text-field
-                      v-model="newReading"
-                      label="Present Reading"
-                      outlined
-                      dense
-                      type="number"
-                      :rules="readingRules"
-                      @input="calculateConsumption"
-                    ></v-text-field>
-                  </v-col>
-
-                  <v-col cols="12">
-                    <v-text-field
-                      v-model="consumption"
-                      label="Consumption (m³)"
-                      outlined
-                      dense
-                      disabled
-                    ></v-text-field>
-                  </v-col>
-
-                  <v-col cols="12">
-                    <v-select
-                      v-model="readingType"
-                      :items="readingTypes"
-                      label="Reading Type"
-                      outlined
-                      dense
-                      required
-                    ></v-select>
-                  </v-col>
-
-                  <v-col cols="12">
-                    <v-textarea
-                      v-model="notes"
-                      label="Notes"
-                      outlined
-                      dense
-                      rows="3"
-                      placeholder="Add any remarks about the reading"
-                    ></v-textarea>
-                  </v-col>
-                </v-row>
-              </v-form>
-            </template>
+            </div>
           </v-card-text>
-
-          <v-divider></v-divider>
-
-          <v-card-actions class="pa-4">
-            <v-spacer></v-spacer>
-            <v-btn
-              text
-              @click="showBillingDialog = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              :disabled="!valid"
-              @click="saveBilling"
-            >
-              Save Reading
-            </v-btn>
-          </v-card-actions>
         </v-card>
-      </v-dialog>
+      </v-col>
 
-      <!-- Success Snackbar -->
-      <v-snackbar
-        v-model="showSuccessSnackbar"
-        color="success"
-        timeout="3000"
-      >
-        Billing entry saved successfully
-      </v-snackbar>
-    </div>
-  </div>
+      <v-col cols="12" sm="4">
+        <v-card class="summary-card" height="100%">
+          <v-card-text>
+            <div class="d-flex flex-column justify-center align-center">
+              <div class="text-overline mb-2">Last Payment</div>
+              <v-icon color="primary" size="36" class="mb-2"
+                >mdi-receipt</v-icon
+              >
+              <div class="text-h4 primary--text font-weight-bold">
+                ₱{{ lastPayment ? lastPayment.totalBill.toFixed(2) : "0.00" }}
+              </div>
+              <div class="text-caption grey--text text--darken-1 mt-1">
+                {{ formatLastPaymentDate() }}
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-card elevation="2">
+      <v-tabs v-model="tab" fixed-tabs background-color="primary" dark>
+        <v-tab class="px-6">
+          <v-icon left>mdi-file-document</v-icon>
+          Consumption Records
+        </v-tab>
+        <v-tab class="px-6">
+          <v-icon left>mdi-cash</v-icon>
+          Payment History
+        </v-tab>
+      </v-tabs>
+
+      <v-tabs-items v-model="tab" class="pa-2">
+        <!-- Consumption Records Tab -->
+        <v-tab-item>
+          <v-card flat>
+            <v-card-title>
+              <div class="text-h6">Billing Records</div>
+              <v-spacer></v-spacer>
+              <v-text-field
+                v-model="filter"
+                append-icon="mdi-magnify"
+                label="Search"
+                single-line
+                hide-details
+                outlined
+                dense
+                class="mx-4"
+              ></v-text-field>
+              <v-btn
+                color="primary"
+                @click="onShowDialog"
+                :disabled="!consumer.isActive"
+              >
+                <v-icon left>mdi-plus</v-icon>
+                Create Billing
+              </v-btn>
+            </v-card-title>
+
+            <v-data-table
+              :headers="billingHeaders"
+              :items="consumers"
+              :search="filter"
+              :items-per-page="10"
+              :loading="loading"
+              loading-text="Loading billing records..."
+            >
+              <template v-slot:[`item.billingDate`]="{ item }">
+                {{ formatDate(item.billingDate) }}
+              </template>
+
+              <template v-slot:[`item.consumption`]="{ item }">
+                {{ item.consumption }} m³
+              </template>
+
+              <template v-slot:[`item.status`]="{ item }">
+                <v-chip
+                  :color="getStatusColor(item.status)"
+                  small
+                  label
+                  text-color="white"
+                >
+                  {{ item.status }}
+                </v-chip>
+              </template>
+
+              <template v-slot:[`item.actions`]="{ item }">
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn
+                      icon
+                      small
+                      color="primary"
+                      v-bind="attrs"
+                      v-on="on"
+                      @click="onViewItem(item)"
+                      class="mr-2"
+                    >
+                      <v-icon small>mdi-eye</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>View Details</span>
+                </v-tooltip>
+
+                <v-tooltip bottom>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn
+                      icon
+                      small
+                      color="error"
+                      v-bind="attrs"
+                      v-on="on"
+                      @click="confirmDelete(item)"
+                      :disabled="item.status === 'Paid'"
+                    >
+                      <v-icon small>mdi-delete</v-icon>
+                    </v-btn>
+                  </template>
+                  <span>Delete Record</span>
+                </v-tooltip>
+              </template>
+            </v-data-table>
+          </v-card>
+        </v-tab-item>
+
+        <!-- Payment History Tab -->
+        <v-tab-item>
+          <v-card flat>
+            <v-card-title>
+              <div class="text-h6">Payment History</div>
+              <v-spacer></v-spacer>
+              <v-text-field
+                v-model="collectionFilter"
+                append-icon="mdi-magnify"
+                label="Search"
+                single-line
+                hide-details
+                outlined
+                dense
+              ></v-text-field>
+            </v-card-title>
+
+            <v-data-table
+              :headers="collectionHeaders"
+              :items="collections"
+              :search="collectionFilter"
+              :items-per-page="10"
+              :loading="loading"
+              loading-text="Loading payment history..."
+            >
+              <template v-slot:[`item.paymentDate`]="{ item }">
+                {{ formatDateTime(item.paymentDate) }}
+              </template>
+
+              <template v-slot:[`item.totalBill`]="{ item }">
+                ₱{{ formatAmount(item.totalBill) }}
+              </template>
+
+              <template v-slot:[`item.amountPaid`]="{ item }">
+                ₱{{ formatAmount(item.amountPaid) }}
+              </template>
+            </v-data-table>
+          </v-card>
+        </v-tab-item>
+      </v-tabs-items>
+    </v-card>
+
+    <!-- Billing Dialog -->
+    <consumer-billing-dialog
+      ref="billing"
+      v-model="showDialog"
+      @update:billings="fetch"
+      :billing-data="item"
+      :update="update"
+    />
+
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="showDeleteDialog" max-width="400">
+      <v-card>
+        <v-card-title class="headline">Delete Billing Record</v-card-title>
+        <v-card-text>
+          Are you sure you want to delete this billing record? This action
+          cannot be undone.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey darken-1" text @click="showDeleteDialog = false"
+            >Cancel</v-btn
+          >
+          <v-btn color="error" text @click="deleteRecord">Delete</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Error Snackbar -->
+    <v-snackbar v-model="showError" color="error" timeout="3000">
+      {{ errorMessage }}
+      <template v-slot:action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="showError = false">Close</v-btn>
+      </template>
+    </v-snackbar>
+  </v-container>
 </template>
 
 <script>
-export default {
-  name: 'MeterReaderPage',
-  
-  data: () => ({
-    search: '',
-    selectedPurok: null,
-    showBillingDialog: false,
-    showSuccessSnackbar: false,
-    selectedConsumer: null,
-    valid: false,
-    previousReading: '',
-    newReading: '',
-    consumption: '',
-    readingType: 'Actual',
-    notes: '',
-    readingTypes: ['Actual', 'Average', 'Estimated'],
-    readingRules: [
-      v => !!v || 'Reading is required',
-      v => v >= 0 || 'Reading must be positive',
-      v => v >= (parseFloat(this?.previousReading) || 0) || 'Reading must be greater than previous reading'
-    ],
+import api from "@/services/api";
+import ConsumerBillingDialog from "@/components/ConsumerBillingDialog.vue";
+import moment from "moment";
 
-    // Static data
-    puroks: ['Purok 1', 'Purok 2', 'Purok 3', 'Purok 4', 'Purok 5'],
-    consumers: [
-      {
-        id: 1,
-        name: 'Juan Dela Cruz',
-        address: 'Purok 1, Sample Address',
-        lastBilling: {
-          status: 'Paid',
-          presentRead: 150
-        }
-      },
-      {
-        id: 2,
-        name: 'Maria Santos',
-        address: 'Purok 2, Sample Address',
-        lastBilling: {
-          status: 'Pending',
-          presentRead: 200
-        }
-      },
-      {
-        id: 3,
-        name: 'Pedro Garcia',
-        address: 'Purok 1, Sample Address',
-        lastBilling: {
-          status: 'Paid',
-          presentRead: 175
-        }
-      },
-      // Add more static consumer data as needed
-    ]
-  }),
+export default {
+  name: "ConsumerView",
+
+  components: {
+    ConsumerBillingDialog,
+  },
+
+  data() {
+    return {
+      tab: 0,
+      consumers: [],
+      collections: [],
+      filter: "",
+      collectionFilter: "",
+      showDialog: false,
+      showDeleteDialog: false,
+      showError: false,
+      errorMessage: "",
+      item: {},
+      itemToDelete: null,
+      update: false,
+      consumer: {},
+      loading: false,
+      billingHeaders: [
+        { text: "Billing Date", value: "billingDate" },
+        { text: "Previous Read", value: "previousRead" },
+        { text: "Present Read", value: "presentRead" },
+        { text: "Consumption", value: "consumption" },
+        { text: "Payment Status", value: "status" },
+        { text: "Actions", value: "actions", sortable: false },
+      ],
+      collectionHeaders: [
+        { text: "Payment Date", value: "paymentDate" },
+        { text: "Total Bill", value: "totalBill" },
+        { text: "Amount Paid", value: "amountPaid" },
+        { text: "Payment Method", value: "paymentMethod" },
+        { text: "Collection Type", value: "collectionType" },
+      ],
+    };
+  },
 
   computed: {
-    filteredConsumers() {
-      return this.consumers.filter(consumer => {
-        const matchesSearch = !this.search || 
-          consumer.name.toLowerCase().includes(this.search.toLowerCase()) ||
-          consumer.address.toLowerCase().includes(this.search.toLowerCase());
-        
-        const matchesPurok = !this.selectedPurok || 
-          consumer.address.includes(this.selectedPurok);
+    consumerInfo() {
+      const fullName =
+        `${this.consumer.firstName} ${this.consumer.middleName} ${this.consumer.lastName}`.toUpperCase();
+      const fullAddress = `${this.consumer.purok} ${this.consumer.address}`;
+      return {
+        ...this.consumer,
+        fullName,
+        fullAddress,
+      };
+    },
 
-        return matchesSearch && matchesPurok;
-      });
-    }
+    totalConsumption() {
+      return this.consumers.reduce(
+        (sum, billing) => sum + billing.consumption,
+        0
+      );
+    },
+
+    outstandingBalance() {
+      return this.consumers
+        .filter((billing) => billing.status !== "Paid")
+        .reduce((sum, billing) => sum + billing.totalBill, 0);
+    },
+
+    lastPayment() {
+      return this.collections.length > 0 ? this.collections[0] : null;
+    },
   },
 
   methods: {
-    getBillingStatusColor(status) {
-      switch(status) {
-        case 'Paid':
-          return 'success';
-        case 'Pending':
-          return 'warning';
-        default:
-          return 'grey';
+    async fetch() {
+      this.loading = true;
+      try {
+        const consumerId = this.$route.params.id;
+
+        const [consumerResponse, billingsResponse, collectionsResponse] =
+          await Promise.all([
+            api.get(`/consumer/${consumerId}`),
+            api.get(`/billing/consumer/all/${consumerId}`),
+            api.get(`/collection/consumer/${consumerId}`),
+          ]);
+
+        this.consumer = consumerResponse.data;
+        this.consumers = billingsResponse.data;
+        this.collections = Array.isArray(collectionsResponse.data)
+          ? collectionsResponse.data
+          : [];
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        this.errorMessage = "Failed to load consumer data. Please try again.";
+        this.showError = true;
+      } finally {
+        this.loading = false;
       }
     },
 
-    openBillingDialog(consumer) {
-      this.selectedConsumer = consumer;
-      this.previousReading = consumer.lastBilling?.presentRead || 0;
-      this.newReading = '';
-      this.consumption = '';
-      this.readingType = 'Actual';
-      this.notes = '';
-      this.showBillingDialog = true;
+    formatLastPaymentDate() {
+      if (!this.lastPayment) return "No payments yet";
+      return moment(this.lastPayment.paymentDate).format("MMM DD, YYYY");
     },
 
-    calculateConsumption() {
-      if (this.newReading && this.previousReading) {
-        const consumption = parseFloat(this.newReading) - parseFloat(this.previousReading);
-        this.consumption = consumption >= 0 ? consumption : 0;
-      } else {
-        this.consumption = '';
-      }
+    formatDate(date) {
+      return moment(date).format("YYYY-MM-DD");
     },
 
-    async saveBilling() {
-      if (this.$refs.form.validate()) {
-        // Simulate API call
-        console.log('Saving billing:', {
-          consumerId: this.selectedConsumer.id,
-          previousReading: this.previousReading,
-          presentReading: this.newReading,
-          consumption: this.consumption,
-          readingType: this.readingType,
-          notes: this.notes,
-          date: new Date()
-        });
+    formatDateTime(date) {
+      return moment(date).format("YYYY-MM-DD hh:mm A");
+    },
 
-        // Show success message
-        this.showSuccessSnackbar = true;
-        this.showBillingDialog = false;
+    formatAmount(amount) {
+      return parseFloat(amount).toFixed(2);
+    },
 
-        // Update consumer's last billing in the list
-        const consumerIndex = this.consumers.findIndex(c => c.id === this.selectedConsumer.id);
-        if (consumerIndex !== -1) {
-          this.consumers[consumerIndex].lastBilling = {
-            status: 'Pending',
-            presentRead: parseFloat(this.newReading)
-          };
+    getStatusColor(status) {
+      return status === "Paid" ? "success" : "error";
+    },
+
+    onViewItem(item) {
+      this.item = JSON.parse(JSON.stringify(item));
+      this.update = true;
+      this.showDialog = true;
+    },
+
+    onShowDialog() {
+      this.item = {};
+      this.update = false;
+      this.showDialog = true;
+      this.$refs.billing.getItem();
+    },
+
+    confirmDelete(item) {
+      this.itemToDelete = item;
+      this.showDeleteDialog = true;
+    },
+
+    async deleteRecord() {
+      try {
+        if (this.itemToDelete) {
+          await api.delete(`/billing/${this.itemToDelete.id}`);
+          await this.fetch();
+          this.showDeleteDialog = false;
         }
+      } catch (error) {
+        console.error("Error deleting record:", error);
+        this.errorMessage =
+          "Failed to delete billing record. Please try again.";
+        this.showError = true;
       }
-    }
-  }
+    },
+  },
+
+  created() {
+    this.fetch();
+  },
 };
 </script>
 
 <style scoped>
-.meter-reader-app {
-  padding-top: 56px;
-  background-color: #f5f5f5;
-  min-height: 100vh;
+.profile-card {
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.content-wrapper {
-  padding: 16px;
+.profile-field {
+  padding: 8px 0;
 }
 
-.search-section {
-  position: sticky;
-  top: 56px;
-  z-index: 1;
-  background-color: #f5f5f5;
-  padding-top: 8px;
+.summary-card {
+  border-radius: 8px;
+  transition: transform 0.2s;
 }
 
-.consumer-card {
+.summary-card:hover {
+  transform: translateY(-2px);
+}
+
+.v-card {
   border-radius: 8px;
 }
 
-.consumer-card.already-billed {
-  opacity: 0.7;
+.v-data-table {
+  border-radius: 8px;
 }
 
-.consumer-name {
-  font-weight: 500;
-  font-size: 1rem;
+.text-h4 {
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.consumer-details {
-  font-size: 0.875rem;
+.text-overline {
   color: rgba(0, 0, 0, 0.6);
+  letter-spacing: 2px;
 }
 
-.detail-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
+.v-btn {
+  text-transform: none;
+  letter-spacing: 0.5px;
 }
 
-.billing-consumer-info {
-  border-left: 4px solid var(--v-primary-base);
-  padding-left: 12px;
+.v-tab {
+  text-transform: none;
+  letter-spacing: 0.5px;
 }
 
-@media (max-width: 320px) {
-  .content-wrapper {
-    padding: 12px;
-  }
+.v-chip {
+  font-weight: 500;
+}
+
+.v-data-table ::v-deep .v-data-table__wrapper {
+  border-radius: 8px;
+}
+
+.v-text-field.v-text-field--enclosed .v-text-field__details {
+  margin-bottom: 0;
 }
 </style>
