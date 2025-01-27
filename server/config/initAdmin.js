@@ -11,7 +11,7 @@ async function initializeAdmin() {
                 email: 'admin@admin.com',
                 password: 'adminadmin',
                 status: 'active',
-                role: 'admin'
+                role: 'admin',
             });
             console.log('Admin account created successfully');
         }

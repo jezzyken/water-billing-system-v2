@@ -284,7 +284,7 @@ export default {
     newPassword: "",
     selectedUserId: null,
     statusOptions: ["active", "inactive"],
-    roles: ["admin", "cashier"],
+    roles: ["admin", "collection officer", "meter reader" ],
     search: "",
     isLoading: false,
     actions: [
@@ -356,6 +356,7 @@ export default {
       this.isLoading = true;
       try {
         const response = await this.getUsers();
+        console.log(response)
         if (response.success) {
           this.users = response.users.map((user) => ({
             ...user,

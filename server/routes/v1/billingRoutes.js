@@ -66,6 +66,9 @@ router.post('/', async (req, res) => {
      consumerId: req.body.consumerId,
    }).sort({ billingDate: -1 });
 
+
+   console.log(req.body)
+
    let previousBalance = 0;
    if (previousBill && previousBill.status === "Unpaid") {
      previousBalance = previousBill.totalBill;
@@ -76,6 +79,7 @@ router.post('/', async (req, res) => {
    const result = await billing.save();
    res.status(201).json(result);
  } catch (error) {
+  console.log(error)
    res.status(400).json({ message: error.message });
  }
 });

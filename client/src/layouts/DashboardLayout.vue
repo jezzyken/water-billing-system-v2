@@ -273,16 +273,26 @@ export default {
       return userData?.role?.name === "Admin";
     },
     filteredMenuItems() {
+      const userData = JSON.parse(localStorage.getItem("currentUser"));
+      const userRole = userData?.role;
+
+      if (userRole === "meter reader") {
+        return [
+          {
+            title: "Consumers",
+            icon: "mdi-file-send",
+            to: "/admin/consumers",
+          },
+        ];
+      }
+
       return this.menuItems.filter((item) => {
         if (item.show === "isAdmin" && !this.isAdmin) {
           return false;
         }
 
-        if (item.title === "Dashboard") {
-          const userData = JSON.parse(localStorage.getItem("user"));
-          if (userData?.role?.name === "Staff") {
-            return false;
-          }
+        if (item.title === "Dashboard" && userRole === "Staff") {
+          return false;
         }
 
         return true;

@@ -7,7 +7,7 @@ const ObjectId = require("mongoose").Types.ObjectId;
 // Get all collections with populated consumer data
 router.get('/', async (req, res) => {
   try {
-    const result = await Models.find().populate("consumerId");
+    const result = await Models.find().populate("consumerId").sort({ _id: -1 });
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });

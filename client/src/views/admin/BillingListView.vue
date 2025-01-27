@@ -34,9 +34,6 @@
               class="mt-6"
               clearable
               @click:clear="search = ''"
-              :class="{ 'focused-field': isFocused }"
-              @focus="isFocused = true"
-              @blur="isFocused = false"
             ></v-text-field>
           </v-toolbar>
         </template>

@@ -36,11 +36,11 @@ const userSchema = new mongoose.Schema(
   {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
   }
 );
 
-userSchema.virtual('fullName').get(function() {
+userSchema.virtual("fullName").get(function () {
   return `${this.fname} ${this.lname}`;
 });
 

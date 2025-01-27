@@ -9,6 +9,7 @@
           @click="onShowDialog"
           prepend-icon="mdi-plus"
           class="px-4"
+          v-if="!isMeterReader"
         >
           Add New Consumer
         </v-btn>
@@ -197,7 +198,16 @@ export default {
         text: "",
         color: "",
       },
+      showReceipt: false,
+      receiptData: null
     };
+  },
+
+  computed: {
+    isMeterReader() {
+      const userData = JSON.parse(localStorage.getItem("currentUser"));
+      return userData?.role === "meter reader";
+    },
   },
 
   methods: {

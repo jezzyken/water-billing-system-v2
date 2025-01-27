@@ -7,7 +7,7 @@ const moment = require("moment")
 // Get all consumers
 router.get('/', async (req, res) => {
   try {
-    const result = await Models.find();
+    const result = await Models.find().sort({ _id: -1 });
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });

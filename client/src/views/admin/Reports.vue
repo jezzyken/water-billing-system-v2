@@ -181,6 +181,7 @@
 import api from "@/services/api";
 import { format } from "date-fns";
 import { saveAs } from "file-saver";
+import moment from "moment";
 
 export default {
   name: "Reports",
@@ -339,9 +340,13 @@ export default {
           },
         });
 
-        console.log(response);
+        this.tableData = response.data.data.items.map(item => ({
+          ...item,
+          paymentDate: moment(item.patymenDate).format("YYYY-MM-DD"),
+          date: moment(item.date).format("YYYY-MM-DD"),
+        }));
 
-        this.tableData = response.data.data.items;
+        console.log(this.tableData)
         this.reportSummary = response.data.data.summary;
       } catch (error) {
         console.error("Error fetching data:", error);

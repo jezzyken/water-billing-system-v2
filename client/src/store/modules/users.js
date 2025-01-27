@@ -22,10 +22,10 @@ const actions = {
           },
         }
       );
-      const { token, user, expiresIn } = response.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("expiresIn", expiresIn);
-      commit("SET_AUTH", { token, user, expiresIn });
+      // const { token, user, expiresIn } = response.data;
+      // localStorage.setItem("token", token);
+      // localStorage.setItem("expiresIn", expiresIn);
+      // commit("SET_AUTH", { token, user, expiresIn });
       return response.data;
     } catch (error) {
       return error.response;

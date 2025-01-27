@@ -146,14 +146,30 @@
                 dense
                 class="mx-4"
               ></v-text-field>
-              <v-btn
-                color="primary"
-                @click="onShowDialog"
-                :disabled="!consumer.isActive"
-              >
-                <v-icon left>mdi-plus</v-icon>
-                Create Billing
-              </v-btn>
+              <v-responsive class="d-flex">
+                <v-btn
+                  color="primary"
+                  @click="onShowDialog"
+                  :disabled="!consumer.isActive"
+                  class="hidden-sm-and-down"
+                >
+                  <v-icon left>mdi-plus</v-icon>
+                  Create Billing
+                </v-btn>
+
+                <v-btn
+                  color="primary"
+                  @click="onShowDialog"
+                  :disabled="!consumer.isActive"
+                  class="hidden-md-and-up fab-button"
+                  fab
+                  fixed
+                  bottom
+                  right
+                >
+                  <v-icon>mdi-plus</v-icon>
+                </v-btn>
+              </v-responsive>
             </v-card-title>
 
             <v-data-table
@@ -271,6 +287,7 @@
       @update:billings="fetch"
       :billing-data="item"
       :update="update"
+      :fullscreen="$vuetify.breakpoint.smAndDown"
     />
 
     <!-- Delete Confirmation Dialog -->
@@ -369,7 +386,7 @@ export default {
     outstandingBalance() {
       return this.consumers
         .filter((billing) => billing.status !== "Paid")
-        .reduce((sum, billing) => sum + billing.totalBill, 0);
+        .reduce((sum, billing) => sum + billing.presentBill, 0);
     },
 
     lastPayment() {
@@ -522,5 +539,19 @@ export default {
 
 .v-text-field.v-text-field--enclosed .v-text-field__details {
   margin-bottom: 0;
+}
+
+.fab-button {
+  z-index: 4;
+  margin-bottom: 16px;
+  margin-right: 16px;
+}
+
+.v-btn.fab-button {
+  transition: transform 0.2s;
+}
+
+.v-btn.fab-button:active {
+  transform: scale(0.95);
 }
 </style>

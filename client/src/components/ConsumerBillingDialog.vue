@@ -1,8 +1,16 @@
 <template>
-  <v-dialog v-model="dialog" persistent max-width="700" class="billing-dialog">
+  <v-dialog
+    v-model="dialog"
+    persistent
+    max-width="700"
+    class="billing-dialog"
+    :fullscreen="$vuetify.breakpoint.smAndDown"
+  >
     <v-card>
       <v-card-title class="text-h6 d-flex align-center pa-4">
-        <span class="billing-title">{{ update ? 'Update' : 'Create New' }} Billing</span>
+        <span class="billing-title"
+          >{{ update ? "Update" : "Create New" }} Billing</span
+        >
         <v-spacer></v-spacer>
         <v-btn icon @click="dialog = false">
           <v-icon>mdi-close</v-icon>
@@ -13,7 +21,6 @@
 
       <v-card-text class="pt-4">
         <v-container v-if="!isLoading" class="px-2 px-sm-4">
-          <!-- Billing Period Selection -->
           <v-row>
             <v-col cols="12" sm="6">
               <v-select
@@ -40,7 +47,6 @@
             </v-col>
           </v-row>
 
-          <!-- Billing Details -->
           <v-row>
             <v-col cols="12" sm="4">
               <v-menu
@@ -89,7 +95,11 @@
                 outlined
                 dense
                 type="number"
-                :rules="[v => v >= items.previousRead || 'Present read must be greater than previous read']"
+                :rules="[
+                  (v) =>
+                    v >= items.previousRead ||
+                    'Present read must be greater than previous read',
+                ]"
               ></v-text-field>
             </v-col>
 
@@ -104,7 +114,6 @@
             </v-col>
           </v-row>
 
-          <!-- Meter Details -->
           <v-row>
             <v-col cols="12" sm="6">
               <v-select
@@ -151,19 +160,8 @@
 
       <v-card-actions class="pa-4">
         <v-spacer></v-spacer>
-        <v-btn 
-          text 
-          @click="dialog = false"
-          class="px-4"
-        >
-          Cancel
-        </v-btn>
-        <v-btn 
-          color="primary" 
-          @click="onAddItem"
-          :loading="isSaving"
-          class="px-6"
-        >
+        <v-btn text @click="dialog = false" class="px-4"> Cancel </v-btn>
+        <v-btn color="primary" @click="onAddItem" class="px-6">
           {{ buttonLabel }}
         </v-btn>
       </v-card-actions>
@@ -369,7 +367,10 @@ export default {
 </script>
 
 <style scoped>
-.billing-dialog ::v-deep .v-text-field.v-text-field--enclosed .v-text-field__details {
+.billing-dialog
+  ::v-deep
+  .v-text-field.v-text-field--enclosed
+  .v-text-field__details {
   margin-bottom: 0;
 }
 

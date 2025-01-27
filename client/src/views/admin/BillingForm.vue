@@ -247,6 +247,7 @@
       :show="showPaymentDialog"
       :total-amount="statement.totalBill"
       :loading="isLoading"
+      :consumer="currentBilling"
       @cancel="showPaymentDialog = false"
       @confirm="handlePaymentConfirm"
     />
@@ -575,12 +576,143 @@ export default {
         this.showSnackbar("Payment processed successfully!", "success");
         this.showPaymentDialog = false;
         this.onCompletePayment();
+        await this.printReceipt(paymentDetails);
       } catch (error) {
         console.error("Payment processing error:", error);
         this.showSnackbar("Failed to process payment", "error");
       } finally {
         this.isLoading = false;
       }
+    },
+
+    printReceipt(paymentDetails) {
+      console.log(paymentDetails)
+      const receipt = this.generateReceiptContent(paymentDetails);
+      const printWindow = window.open("", "_blank");
+      printWindow.document.write(receipt);
+      printWindow.document.close();
+      printWindow.print();
+      printWindow.close();
+    },
+
+    generateReceiptContent(paymentDetails) {
+      const today = new Date().toLocaleDateString("en-PH");
+      const time = new Date().toLocaleTimeString("en-PH");
+      const orNumber = Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, "0");
+
+      return `
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          width: 300px; 
+          margin: 0 auto;
+          padding: 20px;
+          font-size: 12px;
+        }
+        .header { text-align: center; margin-bottom: 20px; }
+        .details { margin-bottom: 15px; }
+        .amount { font-weight: bold; }
+        .footer { text-align: center; margin-top: 20px; font-size: 12px; }
+        .divider { border-top: 1px dashed #000; margin: 10px 0; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .bold { font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2 style="margin: 0;">WATER DISTRICT</h2>
+        <p style="margin: 5px 0;">Official Receipt</p>
+        <p style="margin: 5px 0;">OR No: ${orNumber}</p>
+        <p style="margin: 5px 0;">Date: ${today}<br>Time: ${time}</p>
+      </div>
+
+      <div class="details">
+        <p style="margin: 5px 0;">Account No: ${
+          this.currentBilling.consumerId.accountNo
+        }</p>
+        <p style="margin: 5px 0;">Name: ${this.currentBilling.name}</p>
+        <p style="margin: 5px 0;">Address: ${
+          this.currentBilling.consumerId.address
+        }</p>
+        <p style="margin: 5px 0;">Purok: ${
+          this.currentBilling.consumerId.purok
+        }</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="details">
+        <p style="margin: 5px 0;">Period: ${moment(
+          this.currentBilling.previousDate
+        ).format("MM/DD/YYYY")} - ${moment(
+        this.currentBilling.presentDate
+      ).format("MM/DD/YYYY")}</p>
+        <p style="margin: 5px 0;">Previous: ${
+          this.currentBilling.previousRead
+        }</p>
+        <p style="margin: 5px 0;">Present: ${
+          this.currentBilling.presentRead
+        }</p>
+        <p style="margin: 5px 0;">Consumption: ${
+          this.currentBilling.consumption
+        } cu.m</p>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="details">
+        <table style="width: 100%;">
+          <tr>
+            <td>Current Bill:</td>
+            <td class="text-right">₱${this.formatAmount(
+              this.statement.presentBill
+            )}</td>
+          </tr>
+          <tr>
+            <td>Previous Balance:</td>
+            <td class="text-right">₱${this.formatAmount(
+              this.statement.previousBalance
+            )}</td>
+          </tr>
+          <tr>
+            <td class="bold">Total Amount:</td>
+            <td class="text-right bold">₱${this.formatAmount(
+              this.statement.totalBill
+            )}</td>
+          </tr>
+          <tr>
+            <td>Cash Payment:</td>
+            <td class="text-right">₱${this.formatAmount(
+              paymentDetails.cashAmount
+            )}</td>
+          </tr>
+          <tr>
+            <td>Change:</td>
+            <td class="text-right">₱${this.formatAmount(
+              paymentDetails.changeAmount
+            )}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="footer">
+        <p style="margin: 5px 0;">Next Due Date: ${moment(
+          this.currentBilling.dueDate
+        ).format("MM/DD/YYYY")}</p>
+        <p style="margin: 5px 0;">Thank you for your payment!</p>
+        <p style="margin: 15px 0 5px;">Cashier: _________________</p>
+        <p style="margin: 5px 0; font-size: 10px;">This serves as your Official Receipt</p>
+      </div>
+    </body>
+    </html>
+  `;
     },
 
     onCompletePayment() {
