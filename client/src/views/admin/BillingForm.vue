@@ -1,5 +1,16 @@
 <template>
   <v-container fluid>
+    <v-btn
+      :color="printer.isConnected ? 'success' : 'primary'"
+      @click="printer.isConnected ? disconnectPrinter() : initializePrinter()"
+      class="mb-2"
+    >
+      <v-icon left>
+        {{ printer.isConnected ? "mdi-printer-check" : "mdi-printer" }}
+      </v-icon>
+      {{ printer.isConnected ? "Printer Connected" : "Connect Printer" }}
+    </v-btn>
+
     <v-card class="mb-6 billing-card" elevation="2">
       <v-card-title
         class="headline primary white--text py-4 d-flex justify-space-between align-center"
@@ -374,6 +385,11 @@ export default {
         color: "",
       },
       showPaymentDialog: false,
+      printer: {
+        device: null,
+        characteristic: null,
+        isConnected: false,
+      },
     };
   },
 
@@ -426,6 +442,43 @@ export default {
   },
 
   methods: {
+    async initializePrinter() {
+      if (this.printer.isConnected) {
+        return true;
+      }
+
+      try {
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ services: ["000018f0-0000-1000-8000-00805f9b34fb"] }],
+        });
+
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService(
+          "000018f0-0000-1000-8000-00805f9b34fb"
+        );
+        const characteristic = await service.getCharacteristic(
+          "00002af1-0000-1000-8000-00805f9b34fb"
+        );
+
+        this.printer = {
+          device,
+          characteristic,
+          isConnected: true,
+        };
+
+        device.addEventListener("gattserverdisconnected", () => {
+          this.printer.isConnected = false;
+          this.showSnackbar("Printer disconnected", "warning");
+        });
+
+        return true;
+      } catch (error) {
+        console.error("Printer initialization error:", error);
+        this.showPrintError(error);
+        return false;
+      }
+    },
+
     async fetch() {
       try {
         const response = await api.get(
@@ -585,135 +638,264 @@ export default {
       }
     },
 
-    printReceipt(paymentDetails) {
-      console.log(paymentDetails)
-      const receipt = this.generateReceiptContent(paymentDetails);
-      const printWindow = window.open("", "_blank");
-      printWindow.document.write(receipt);
-      printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
-    },
-
-    generateReceiptContent(paymentDetails) {
-      const today = new Date().toLocaleDateString("en-PH");
-      const time = new Date().toLocaleTimeString("en-PH");
-      const orNumber = Math.floor(Math.random() * 1000000)
-        .toString()
-        .padStart(6, "0");
-
-      return `
-    <html>
-    <head>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          width: 300px; 
-          margin: 0 auto;
-          padding: 20px;
-          font-size: 12px;
+    async printReceipt(paymentDetails) {
+      try {
+        // Initialize printer if not connected
+        const isPrinterReady = await this.initializePrinter();
+        if (!isPrinterReady) {
+          throw new Error("Printer not ready");
         }
-        .header { text-align: center; margin-bottom: 20px; }
-        .details { margin-bottom: 15px; }
-        .amount { font-weight: bold; }
-        .footer { text-align: center; margin-top: 20px; font-size: 12px; }
-        .divider { border-top: 1px dashed #000; margin: 10px 0; }
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .bold { font-weight: bold; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h2 style="margin: 0;">WATER DISTRICT</h2>
-        <p style="margin: 5px 0;">Official Receipt</p>
-        <p style="margin: 5px 0;">OR No: ${orNumber}</p>
-        <p style="margin: 5px 0;">Date: ${today}<br>Time: ${time}</p>
-      </div>
 
-      <div class="details">
-        <p style="margin: 5px 0;">Account No: ${
-          this.currentBilling.consumerId.accountNo
-        }</p>
-        <p style="margin: 5px 0;">Name: ${this.currentBilling.name}</p>
-        <p style="margin: 5px 0;">Address: ${
-          this.currentBilling.consumerId.address
-        }</p>
-        <p style="margin: 5px 0;">Purok: ${
-          this.currentBilling.consumerId.purok
-        }</p>
-      </div>
+        // ESC/POS Commands
+        const ESC = "\x1B";
+        const LF = "\x0A";
+        const ALIGN_CENTER = `${ESC}a1`;
+        const ALIGN_LEFT = `${ESC}a0`;
+        const EMPHASIZE_ON = `${ESC}E1`;
+        const EMPHASIZE_OFF = `${ESC}E0`;
+        const INIT = `${ESC}@`;
+        const CUT = `${ESC}m`;
+        const PESO = "\x50";
 
-      <div class="divider"></div>
+        // Format receipt content
+        const receiptContent = [
+          INIT,
+          ALIGN_CENTER,
+          EMPHASIZE_ON,
+          "WATER DISTRICT\n",
+          EMPHASIZE_OFF,
+          "Official Receipt\n",
+          `OR No: ${Math.floor(Math.random() * 1000000)
+            .toString()
+            .padStart(6, "0")}\n`,
+          `Date: ${new Date().toLocaleDateString("en-PH")}\n`,
+          `Time: ${new Date().toLocaleTimeString("en-PH")}\n\n`,
 
-      <div class="details">
-        <p style="margin: 5px 0;">Period: ${moment(
-          this.currentBilling.previousDate
-        ).format("MM/DD/YYYY")} - ${moment(
-        this.currentBilling.presentDate
-      ).format("MM/DD/YYYY")}</p>
-        <p style="margin: 5px 0;">Previous: ${
-          this.currentBilling.previousRead
-        }</p>
-        <p style="margin: 5px 0;">Present: ${
-          this.currentBilling.presentRead
-        }</p>
-        <p style="margin: 5px 0;">Consumption: ${
-          this.currentBilling.consumption
-        } cu.m</p>
-      </div>
+          ALIGN_LEFT,
+          `Account No: ${this.currentBilling.consumerId.accountNo}\n`,
+          `Name: ${this.currentBilling.name}\n`,
+          `Address: ${this.currentBilling.consumerId.address}\n`,
+          `Purok: ${this.currentBilling.consumerId.purok}\n\n`,
 
-      <div class="divider"></div>
+          "--------------------------------\n",
 
-      <div class="details">
-        <table style="width: 100%;">
-          <tr>
-            <td>Current Bill:</td>
-            <td class="text-right">₱${this.formatAmount(
-              this.statement.presentBill
-            )}</td>
-          </tr>
-          <tr>
-            <td>Previous Balance:</td>
-            <td class="text-right">₱${this.formatAmount(
-              this.statement.previousBalance
-            )}</td>
-          </tr>
-          <tr>
-            <td class="bold">Total Amount:</td>
-            <td class="text-right bold">₱${this.formatAmount(
-              this.statement.totalBill
-            )}</td>
-          </tr>
-          <tr>
-            <td>Cash Payment:</td>
-            <td class="text-right">₱${this.formatAmount(
-              paymentDetails.cashAmount
-            )}</td>
-          </tr>
-          <tr>
-            <td>Change:</td>
-            <td class="text-right">₱${this.formatAmount(
-              paymentDetails.changeAmount
-            )}</td>
-          </tr>
-        </table>
-      </div>
+          `Period: ${moment(this.currentBilling.previousDate).format(
+            "MM/DD/YYYY"
+          )} - \n`,
+          `       ${moment(this.currentBilling.presentDate).format(
+            "MM/DD/YYYY"
+          )}\n`,
+          `Previous: ${this.currentBilling.previousRead}\n`,
+          `Present: ${this.currentBilling.presentRead}\n`,
+          `Consumption: ${this.currentBilling.consumption} cu.m\n`,
 
-      <div class="divider"></div>
+          "--------------------------------\n",
 
-      <div class="footer">
-        <p style="margin: 5px 0;">Next Due Date: ${moment(
-          this.currentBilling.dueDate
-        ).format("MM/DD/YYYY")}</p>
-        <p style="margin: 5px 0;">Thank you for your payment!</p>
-        <p style="margin: 15px 0 5px;">Cashier: _________________</p>
-        <p style="margin: 5px 0; font-size: 10px;">This serves as your Official Receipt</p>
-      </div>
-    </body>
-    </html>
-  `;
+          `Current Bill:      ${PESO}${this.formatAmount(
+            this.statement.presentBill
+          )}\n`,
+          `Previous Balance:  ${PESO}${this.formatAmount(
+            this.statement.previousBalance
+          )}\n`,
+          EMPHASIZE_ON,
+          `Total Amount:      ${PESO}${this.formatAmount(
+            this.statement.totalBill
+          )}\n`,
+          EMPHASIZE_OFF,
+          `Cash Payment:      ${PESO}${this.formatAmount(
+            paymentDetails.cashAmount
+          )}\n`,
+          `Change:           ${PESO}${this.formatAmount(
+            paymentDetails.changeAmount
+          )}\n\n`,
+
+          "--------------------------------\n",
+
+          ALIGN_CENTER,
+          `Next Due Date: ${moment(this.currentBilling.dueDate).format(
+            "MM/DD/YYYY"
+          )}\n`,
+          "Thank you for your payment!\n\n",
+          "Cashier: _________________\n\n",
+          "This serves as your Official Receipt\n",
+
+          LF + LF + LF,
+          CUT,
+        ].join("");
+
+        // Convert text to bytes
+        const encoder = new TextEncoder();
+        const data = encoder.encode(receiptContent);
+
+        // Send data in chunks
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+          const chunk = data.slice(i, i + CHUNK_SIZE);
+          await this.printer.characteristic.writeValue(chunk);
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+
+        this.showSnackbar("Receipt printed successfully", "success");
+      } catch (error) {
+        console.error("Print error:", error);
+        this.showPrintError(error);
+      }
     },
+
+    showPrintError(error) {
+      let message = "Failed to print receipt: ";
+      if (!navigator.bluetooth) {
+        message = "Bluetooth not supported in this browser";
+      } else if (error.name === "NotFoundError") {
+        message = "No compatible printer found";
+      } else if (error.name === "NetworkError") {
+        message = "Printer connection failed";
+      } else if (error.message === "Printer not ready") {
+        message = "Please connect a printer first";
+      } else {
+        message += error.message;
+      }
+      this.showSnackbar(message, "error");
+    },
+
+    // Add a method to manually disconnect the printer if needed
+    async disconnectPrinter() {
+      if (this.printer.device && this.printer.isConnected) {
+        await this.printer.device.gatt.disconnect();
+        this.printer.isConnected = false;
+        this.printer.characteristic = null;
+      }
+    },
+
+    // printReceipt(paymentDetails) {
+    //   console.log(paymentDetails)
+    //   const receipt = this.generateReceiptContent(paymentDetails);
+    //   const printWindow = window.open("", "_blank");
+    //   printWindow.document.write(receipt);
+    //   printWindow.document.close();
+    //   printWindow.print();
+    //   printWindow.close();
+    // },
+
+    //   generateReceiptContent(paymentDetails) {
+    //     const today = new Date().toLocaleDateString("en-PH");
+    //     const time = new Date().toLocaleTimeString("en-PH");
+    //     const orNumber = Math.floor(Math.random() * 1000000)
+    //       .toString()
+    //       .padStart(6, "0");
+
+    //     return `
+    //   <html>
+    //   <head>
+    //     <style>
+    //       body {
+    //         font-family: Arial, sans-serif;
+    //         width: 300px;
+    //         margin: 0 auto;
+    //         padding: 20px;
+    //         font-size: 12px;
+    //       }
+    //       .header { text-align: center; margin-bottom: 20px; }
+    //       .details { margin-bottom: 15px; }
+    //       .amount { font-weight: bold; }
+    //       .footer { text-align: center; margin-top: 20px; font-size: 12px; }
+    //       .divider { border-top: 1px dashed #000; margin: 10px 0; }
+    //       .text-right { text-align: right; }
+    //       .text-center { text-align: center; }
+    //       .bold { font-weight: bold; }
+    //     </style>
+    //   </head>
+    //   <body>
+    //     <div class="header">
+    //       <h2 style="margin: 0;">WATER DISTRICT</h2>
+    //       <p style="margin: 5px 0;">Official Receipt</p>
+    //       <p style="margin: 5px 0;">OR No: ${orNumber}</p>
+    //       <p style="margin: 5px 0;">Date: ${today}<br>Time: ${time}</p>
+    //     </div>
+
+    //     <div class="details">
+    //       <p style="margin: 5px 0;">Account No: ${
+    //         this.currentBilling.consumerId.accountNo
+    //       }</p>
+    //       <p style="margin: 5px 0;">Name: ${this.currentBilling.name}</p>
+    //       <p style="margin: 5px 0;">Address: ${
+    //         this.currentBilling.consumerId.address
+    //       }</p>
+    //       <p style="margin: 5px 0;">Purok: ${
+    //         this.currentBilling.consumerId.purok
+    //       }</p>
+    //     </div>
+
+    //     <div class="divider"></div>
+
+    //     <div class="details">
+    //       <p style="margin: 5px 0;">Period: ${moment(
+    //         this.currentBilling.previousDate
+    //       ).format("MM/DD/YYYY")} - ${moment(
+    //       this.currentBilling.presentDate
+    //     ).format("MM/DD/YYYY")}</p>
+    //       <p style="margin: 5px 0;">Previous: ${
+    //         this.currentBilling.previousRead
+    //       }</p>
+    //       <p style="margin: 5px 0;">Present: ${
+    //         this.currentBilling.presentRead
+    //       }</p>
+    //       <p style="margin: 5px 0;">Consumption: ${
+    //         this.currentBilling.consumption
+    //       } cu.m</p>
+    //     </div>
+
+    //     <div class="divider"></div>
+
+    //     <div class="details">
+    //       <table style="width: 100%;">
+    //         <tr>
+    //           <td>Current Bill:</td>
+    //           <td class="text-right">₱${this.formatAmount(
+    //             this.statement.presentBill
+    //           )}</td>
+    //         </tr>
+    //         <tr>
+    //           <td>Previous Balance:</td>
+    //           <td class="text-right">₱${this.formatAmount(
+    //             this.statement.previousBalance
+    //           )}</td>
+    //         </tr>
+    //         <tr>
+    //           <td class="bold">Total Amount:</td>
+    //           <td class="text-right bold">₱${this.formatAmount(
+    //             this.statement.totalBill
+    //           )}</td>
+    //         </tr>
+    //         <tr>
+    //           <td>Cash Payment:</td>
+    //           <td class="text-right">₱${this.formatAmount(
+    //             paymentDetails.cashAmount
+    //           )}</td>
+    //         </tr>
+    //         <tr>
+    //           <td>Change:</td>
+    //           <td class="text-right">₱${this.formatAmount(
+    //             paymentDetails.changeAmount
+    //           )}</td>
+    //         </tr>
+    //       </table>
+    //     </div>
+
+    //     <div class="divider"></div>
+
+    //     <div class="footer">
+    //       <p style="margin: 5px 0;">Next Due Date: ${moment(
+    //         this.currentBilling.dueDate
+    //       ).format("MM/DD/YYYY")}</p>
+    //       <p style="margin: 5px 0;">Thank you for your payment!</p>
+    //       <p style="margin: 15px 0 5px;">Cashier: _________________</p>
+    //       <p style="margin: 5px 0; font-size: 10px;">This serves as your Official Receipt</p>
+    //     </div>
+    //   </body>
+    //   </html>
+    // `;
+    //   },
 
     onCompletePayment() {
       this.$router.push({ name: "billings" });
@@ -722,6 +904,7 @@ export default {
 
   created() {
     this.fetch();
+    this.initializePrinter;
   },
 };
 </script>
