@@ -92,7 +92,7 @@
 
             <h3>Membership Fee</h3>
             <v-alert type="info" color="primary" dark>
-              Membership Fee of P200.00
+              Membership Fee of P300.00
             </v-alert>
 
             <v-row>
@@ -159,7 +159,7 @@ export default {
         change: 0,
         collectionType: 'Membership Fee'
       },
-      membershipFee: 200
+      membershipFee: 300
     }
   },
 
@@ -206,7 +206,8 @@ export default {
       try {
         const data = {
           consumer: this.consumer,
-          payment: { ...this.payment, totalBill: this.membershipFee }
+          payment: { ...this.payment, totalBill: this.membershipFee },
+          isNew: false
         }
         await api.post('/consumer', data)
         this.step = 3

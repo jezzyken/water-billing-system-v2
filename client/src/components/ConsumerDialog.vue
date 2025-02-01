@@ -174,6 +174,8 @@ export default {
           purok: this.consumer.purok,
           contactNo: this.consumer.contactNo,
           isActive: this.consumer.isActive,
+          isMember: true,
+          isNew: false
         };
 
         if (this.update) {

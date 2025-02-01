@@ -30,23 +30,29 @@ router.get('/:id', async (req, res) => {
 // Add new consumer
 router.post('/', async (req, res) => {
   try {
-    const { consumer, payment } = req.body;
-    
-    const consumerData = new Models(consumer);
-    if (!consumer.isMember) {
-      const paymentData = new CollectionModel({
-        ...payment,
-        consumerId: consumerData._id,
-        paymentDate: moment().format("YYYY-MM-DD")
-      });
-      await paymentData.save();
-      consumerData.isMember = true;
-      consumerData.paymentDescription = "Membership Fee";
+    const { consumer, payment, isNew } = req.body;
+
+    if (!isNew) {
+      consumerData = new Models(req.body);
+    } else {
+      consumerData = new Models(consumer);
+      console.log('else')
+      if (!consumer.isMember) {
+        const paymentData = new CollectionModel({
+          ...payment,
+          consumerId: consumerData._id,
+          paymentDate: moment().format("YYYY-MM-DD")
+        });
+        await paymentData.save();
+        consumerData.isMember = true;
+        consumerData.paymentDescription = "Membership Fee";
+      }
     }
     
     const result = await consumerData.save();
     res.status(201).json(result);
   } catch (error) {
+    console.log(error)
     res.status(400).json({ message: error.message });
   }
 });
